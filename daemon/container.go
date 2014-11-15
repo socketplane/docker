@@ -208,6 +208,9 @@ func populateCommand(c *Container, env []string) error {
 	case "none":
 	case "host":
 		en.HostNetworking = true
+	case "ovs":
+		en.HostNetType = "ovs"
+		fallthrough
 	case "bridge", "": // empty string to support existing containers
 		if !c.Config.NetworkDisabled {
 			network := c.NetworkSettings
