@@ -21,6 +21,7 @@ import (
 
 const (
 	DefaultNetworkBridge     = "docker0"
+	DefaultNetworkBridgeType = "linux"
 	MaxAllocatedPortAttempts = 10
 )
 
@@ -70,6 +71,7 @@ var (
 	}
 
 	bridgeIface   string
+	bridgeType    string
 	bridgeNetwork *net.IPNet
 
 	defaultBindingIP  = net.ParseIP("0.0.0.0")
@@ -92,10 +94,14 @@ func InitDriver(job *engine.Job) engine.Status {
 	}
 
 	bridgeIface = job.Getenv("BridgeIface")
+	bridgeType = job.Getenv("BridgeType")
 	usingDefaultBridge := false
 	if bridgeIface == "" {
 		usingDefaultBridge = true
 		bridgeIface = DefaultNetworkBridge
+		if bridgeType != DefaultNetworkBridgeType {
+			bridgeIface = bridgeIface + "-" + bridgeType
+		}
 	}
 
 	addr, err := networkdriver.GetIfaceAddr(bridgeIface)
@@ -323,7 +329,16 @@ func createBridgeIface(name string) error {
 	// before that it was not supported
 	setBridgeMacAddr := err == nil && (kv.Kernel >= 3 && kv.Major >= 3)
 	log.Debugf("setting bridge mac address = %v", setBridgeMacAddr)
-	return netlink.CreateBridge(name, setBridgeMacAddr)
+	if bridgeType == DefaultNetworkBridgeType {
+		return netlink.CreateBridge(name, setBridgeMacAddr)
+	} else if bridgeType == "ovs" {
+		ovs, err := ovs_connect()
+		if err != nil {
+			return err
+		}
+		return CreateOVSBridge(ovs, name)
+	}
+	return nil
 }
 
 // Generate a IEEE802 compliant MAC address from the given IP address.
