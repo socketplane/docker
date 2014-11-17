@@ -575,7 +575,7 @@ func (daemon *Daemon) newContainer(name string, config *runconfig.Config, img *i
 		Config:          config,
 		hostConfig:      &runconfig.HostConfig{},
 		Image:           img.ID, // Always use the resolved image id
-		NetworkSettings: &NetworkSettings{},
+		NetworkSettings: &NetworkSettings{BridgeType: daemon.config.BridgeType},
 		Name:            name,
 		Driver:          daemon.driver.String(),
 		ExecDriver:      daemon.execDriver.Name(),

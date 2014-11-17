@@ -69,6 +69,7 @@ type NetworkInterface struct {
 	IPPrefixLen int    `json:"ip_prefix_len"`
 	MacAddress  string `json:"mac_address"`
 	Bridge      string `json:"bridge"`
+	BridgeType  string `json:"bridge_type"`
 }
 
 type Resources struct {

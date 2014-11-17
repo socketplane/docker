@@ -217,6 +217,7 @@ func populateCommand(c *Container, env []string) error {
 			en.Interface = &execdriver.NetworkInterface{
 				Gateway:     network.Gateway,
 				Bridge:      network.Bridge,
+				BridgeType:  network.BridgeType,
 				IPAddress:   network.IPAddress,
 				IPPrefixLen: network.IPPrefixLen,
 				MacAddress:  network.MacAddress,

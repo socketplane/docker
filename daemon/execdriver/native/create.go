@@ -92,16 +92,23 @@ func (d *driver) createNetwork(container *libcontainer.Config, c *execdriver.Com
 	}
 
 	if c.Network.Interface != nil {
-		vethNetwork := libcontainer.Network{
+		netType := "veth"
+		prefix := "veth"
+		if c.Network.BridgeType == "ovs" {
+			netType := c.Network.BridgeType
+			prefix := ""
+		}
+
+		bridgeNetwork := libcontainer.Network{
 			Mtu:        c.Network.Mtu,
 			Address:    fmt.Sprintf("%s/%d", c.Network.Interface.IPAddress, c.Network.Interface.IPPrefixLen),
 			MacAddress: c.Network.Interface.MacAddress,
 			Gateway:    c.Network.Interface.Gateway,
-			Type:       "veth",
+			Type:       netType,
 			Bridge:     c.Network.Interface.Bridge,
-			VethPrefix: "veth",
+			VethPrefix: prefix,
 		}
-		container.Networks = append(container.Networks, &vethNetwork)
+		container.Networks = append(container.Networks, &bridgeNetwork)
 	}
 
 	if c.Network.ContainerID != "" {
