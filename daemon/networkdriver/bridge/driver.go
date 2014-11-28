@@ -329,6 +329,13 @@ func createBridgeIface(name string) error {
 	// before that it was not supported
 	setBridgeMacAddr := err == nil && (kv.Kernel >= 3 && kv.Major >= 3)
 	log.Debugf("setting bridge mac address = %v", setBridgeMacAddr)
+
+	// WARNING : HACK AHEAD
+	// Ideally, we should have a plugin approach here where appropriate backend can choose to implement
+	// a specific way to create a bridge.
+	// Since the Extensions/Plugin/Driver work is underway, there is no point adding that logic here now.
+	// Hence decided to keep this Hack till the time the extensions framework is usable.
+
 	if bridgeType == DefaultNetworkBridgeType {
 		return netlink.CreateBridge(name, setBridgeMacAddr)
 	} else if bridgeType == "ovs" {
@@ -336,7 +343,8 @@ func createBridgeIface(name string) error {
 		if err != nil {
 			return err
 		}
-		return CreateOVSBridge(ovs, name)
+		// TODO : Error handling for CreateOVSBridge.
+		CreateOVSBridge(ovs, name)
 	}
 	return nil
 }

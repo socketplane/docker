@@ -10,6 +10,7 @@ import (
 
 	"github.com/docker/docker/daemon/execdriver"
 	"github.com/docker/docker/daemon/execdriver/native/template"
+	"github.com/docker/docker/daemon/networkdriver/bridge"
 	"github.com/docker/libcontainer"
 	"github.com/docker/libcontainer/apparmor"
 	"github.com/docker/libcontainer/devices"
@@ -94,9 +95,9 @@ func (d *driver) createNetwork(container *libcontainer.Config, c *execdriver.Com
 	if c.Network.Interface != nil {
 		netType := "veth"
 		prefix := "veth"
-		if c.Network.BridgeType == "ovs" {
-			netType := c.Network.BridgeType
-			prefix := ""
+		if c.Network.Interface.BridgeType != bridge.DefaultNetworkBridgeType {
+			netType = c.Network.Interface.BridgeType
+			prefix = c.Network.Interface.BridgeType
 		}
 
 		bridgeNetwork := libcontainer.Network{
