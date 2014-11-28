@@ -772,6 +772,9 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 		selinuxSetDisabled()
 	}
 
+	// Start Bonjour service
+	go Bonjour(config.Bonjour)
+
 	// get the canonical path to the Docker root directory
 	var realRoot string
 	if _, err := os.Stat(config.Root); err != nil && os.IsNotExist(err) {

@@ -21,6 +21,7 @@ type Config struct {
 	Pidfile                     string
 	Root                        string
 	AutoRestart                 bool
+	Bonjour                     string
 	Dns                         []string
 	DnsSearch                   []string
 	Mirrors                     []string
@@ -51,6 +52,7 @@ func (config *Config) InstallFlags() {
 	flag.StringVar(&config.Pidfile, []string{"p", "-pidfile"}, "/var/run/docker.pid", "Path to use for daemon PID file")
 	flag.StringVar(&config.Root, []string{"g", "-graph"}, "/var/lib/docker", "Path to use as the root of the Docker runtime")
 	flag.BoolVar(&config.AutoRestart, []string{"#r", "#-restart"}, true, "--restart on the daemon has been deprecated in favor of --restart policies on docker run")
+	flag.StringVar(&config.Bonjour, []string{"#bonjour", "-bonjour"}, "", "Optionally Specify an interface name whose ip-address should be used as clustering peer")
 	flag.BoolVar(&config.EnableIptables, []string{"#iptables", "-iptables"}, true, "Enable Docker's addition of iptables rules")
 	flag.BoolVar(&config.EnableIpForward, []string{"#ip-forward", "-ip-forward"}, true, "Enable net.ipv4.ip_forward")
 	flag.BoolVar(&config.EnableIpMasq, []string{"-ip-masq"}, true, "Enable IP masquerading for bridge's IP range")
