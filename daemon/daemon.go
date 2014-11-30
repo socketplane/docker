@@ -773,7 +773,7 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 	}
 
 	// Start Bonjour service
-	go Bonjour(config.Bonjour)
+	go Bonjour(config.Bonjour, eng)
 
 	// get the canonical path to the Docker root directory
 	var realRoot string

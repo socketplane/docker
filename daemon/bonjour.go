@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/docker/docker/engine"
 	"github.com/socketplane/bonjour"
 )
 
@@ -45,7 +46,7 @@ func lookup(resolver *bonjour.Resolver, query chan *bonjour.ServiceEntry) {
 	}
 }
 
-func resolve(resolver *bonjour.Resolver, results chan *bonjour.ServiceEntry) {
+func resolve(resolver *bonjour.Resolver, results chan *bonjour.ServiceEntry, eng *engine.Engine) {
 	err := resolver.Browse(DOCKER_CLUSTER_SERVICE, DOCKER_CLUSTER_DOMAIN)
 	if err != nil {
 		log.Println("Failed to browse:", err.Error())
@@ -56,11 +57,17 @@ func resolve(resolver *bonjour.Resolver, results chan *bonjour.ServiceEntry) {
 		} else {
 			log.Printf("Cached : %s, %s, %s, %s", e.Instance, e.Service, e.Domain, e.AddrIPv4)
 			dnsCache[e.AddrIPv4.String()] = e
+			job := eng.Job("cluster_membership")
+			job.SetenvBool("added", true)
+			job.Setenv("address", e.AddrIPv4.String())
+			if err := job.Run(); err != nil {
+				log.Printf("Error announcing new Cluster neighbor %s : %v", e.AddrIPv4, err)
+			}
 		}
 	}
 }
 
-func Bonjour(intfName string) {
+func Bonjour(intfName string, eng *engine.Engine) {
 	dnsCache = make(map[string]*bonjour.ServiceEntry)
 	queryChan = make(chan *bonjour.ServiceEntry)
 	results := make(chan *bonjour.ServiceEntry)
@@ -71,7 +78,7 @@ func Bonjour(intfName string) {
 	}
 
 	go publish(intfName)
-	go resolve(resolver, results)
+	go resolve(resolver, results, eng)
 	go lookup(resolver, queryChan)
 
 	select {}

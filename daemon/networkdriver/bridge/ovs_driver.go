@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/socketplane/libovsdb"
@@ -112,6 +113,69 @@ func getRootUuid() string {
 	return ""
 }
 
+func addVxlanPort(ovs *libovsdb.OvsdbClient, bridgeName string, portName string, peerAddress string) {
+	namedPortUuid := "port"
+	namedIntfUuid := "intf"
+
+	options := make(map[string]interface{})
+	options["remote_ip"] = peerAddress
+	// intf row to insert
+	intf := make(map[string]interface{})
+	intf["name"] = portName
+	intf["type"] = `vxlan`
+	intf["options"], _ = libovsdb.NewOvsMap(options)
+
+	insertIntfOp := libovsdb.Operation{
+		Op:       "insert",
+		Table:    "Interface",
+		Row:      intf,
+		UUIDName: namedIntfUuid,
+	}
+
+	// port row to insert
+	port := make(map[string]interface{})
+	port["name"] = portName
+	port["interfaces"] = libovsdb.UUID{namedIntfUuid}
+
+	insertPortOp := libovsdb.Operation{
+		Op:       "insert",
+		Table:    "Port",
+		Row:      port,
+		UUIDName: namedPortUuid,
+	}
+
+	// Inserting a row in Port table requires mutating the bridge table.
+	mutateUuid := []libovsdb.UUID{libovsdb.UUID{namedPortUuid}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUuid)
+	mutation := libovsdb.NewMutation("ports", "insert", mutateSet)
+	condition := libovsdb.NewCondition("name", "==", bridgeName)
+
+	// simple mutate operation
+	mutateOp := libovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Bridge",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+	operations := []libovsdb.Operation{insertIntfOp, insertPortOp, mutateOp}
+	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+	if len(reply) < len(operations) {
+		fmt.Println("Number of Replies should be atleast equal to number of Operations")
+	}
+	ok := true
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			fmt.Println("Transaction Failed due to an error :", o.Error, " details:", o.Details, " in ", operations[i])
+			ok = false
+		} else if o.Error != "" {
+			fmt.Println("Transaction Failed due to an error :", o.Error)
+			ok = false
+		}
+	}
+	if ok {
+		fmt.Println("Port Addition Successful : ", reply[1].UUID.GoUuid)
+	}
+}
 func populateCache(updates libovsdb.TableUpdates) {
 	for table, tableUpdate := range updates.Updates {
 		if _, ok := cache[table]; !ok {

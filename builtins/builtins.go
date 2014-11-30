@@ -16,6 +16,9 @@ func Register(eng *engine.Engine) error {
 	if err := daemon(eng); err != nil {
 		return err
 	}
+	if err := cluster(eng); err != nil {
+		return err
+	}
 	if err := remote(eng); err != nil {
 		return err
 	}
@@ -54,6 +57,10 @@ func remote(eng *engine.Engine) error {
 //
 func daemon(eng *engine.Engine) error {
 	return eng.Register("init_networkdriver", bridge.InitDriver)
+}
+
+func cluster(eng *engine.Engine) error {
+	return eng.Register("cluster_membership", bridge.ClusterMembership)
 }
 
 // builtins jobs independent of any subsystem

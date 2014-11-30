@@ -78,6 +78,28 @@ var (
 	currentInterfaces = ifaces{c: make(map[string]*networkInterface)}
 )
 
+func addPeer(peerIp string) error {
+	if bridgeType == "ovs" {
+		ovs, err := ovs_connect()
+		if err != nil {
+			return err
+		}
+		addVxlanPort(ovs, bridgeIface, "vxlan-"+peerIp, peerIp)
+	}
+	return nil
+}
+
+func ClusterMembership(job *engine.Job) engine.Status {
+	var (
+		newMember     = job.GetenvBool("added")
+		memberAddress = job.Getenv("address")
+	)
+	if newMember {
+		addPeer(memberAddress)
+	}
+	return engine.StatusOK
+}
+
 func InitDriver(job *engine.Job) engine.Status {
 	var (
 		network        *net.IPNet
