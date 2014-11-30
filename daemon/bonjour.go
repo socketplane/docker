@@ -54,7 +54,7 @@ func resolve(resolver *bonjour.Resolver, results chan *bonjour.ServiceEntry, eng
 	for e := range results {
 		if e.AddrIPv4 == nil {
 			queryChan <- e
-		} else {
+		} else if !isMyAddress(e.AddrIPv4.String()) {
 			log.Printf("Cached : %s, %s, %s, %s", e.Instance, e.Service, e.Domain, e.AddrIPv4)
 			dnsCache[e.AddrIPv4.String()] = e
 			job := eng.Job("cluster_membership")
@@ -65,6 +65,19 @@ func resolve(resolver *bonjour.Resolver, results chan *bonjour.ServiceEntry, eng
 			}
 		}
 	}
+}
+
+func isMyAddress(address string) bool {
+	intAddrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, a := range intAddrs {
+		if ipnet, ok := a.(*net.IPNet); ok && ipnet.IP.String() == address {
+			return true
+		}
+	}
+	return false
 }
 
 func Bonjour(intfName string, eng *engine.Engine) {
