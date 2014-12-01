@@ -20,7 +20,7 @@ import (
     "os"
     "time"
 
-    "github.com/oleksandr/bonjour"
+    "github.com/socketplane/bonjour"
 )
 
 func main() {
@@ -61,7 +61,7 @@ import (
     "os"
     "time"
 
-    "github.com/oleksandr/bonjour"
+    "github.com/socketplane/bonjour"
 )
 
 func main() {
@@ -104,7 +104,7 @@ import (
     "os/signal"
     "time"
 
-    "github.com/oleksandr/bonjour"
+    "github.com/socketplane/bonjour"
 )
 
 func main() {
@@ -139,7 +139,7 @@ import (
     "os/signal"
     "time"
 
-    "github.com/oleksandr/bonjour"
+    "github.com/socketplane/bonjour"
 )
 
 func main() {

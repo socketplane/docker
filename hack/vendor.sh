@@ -11,9 +11,13 @@ clone() {
 	vcs=$1
 	pkg=$2
 	rev=$3
+	to=$4
 	
+        if [ "$4" = '' ]; then
+          to=$2
+        fi
 	pkg_url=https://$pkg
-	target_dir=src/$pkg
+	target_dir=src/$to
 	
 	echo -n "$pkg @ $rev: "
 	
@@ -67,7 +71,7 @@ if [ "$1" = '--go' ]; then
 	mv tmp-tar src/code.google.com/p/go/src/pkg/archive/tar
 fi
 
-clone git github.com/docker/libcontainer 8d1d0ba38a7348c5cfdc05aea3be34d75aadc8de
+clone git github.com/socketplane/libcontainer v0.1 github.com/docker/libcontainer
 # see src/github.com/docker/libcontainer/update-vendor.sh which is the "source of truth" for libcontainer deps (just like this file)
 rm -rf src/github.com/docker/libcontainer/vendor
 eval "$(grep '^clone ' src/github.com/docker/libcontainer/update-vendor.sh | grep -v 'github.com/codegangsta/cli')"

@@ -78,7 +78,18 @@ func Register(instance, service, domain string, port int, text []string, iface *
 			tmpHostName := fmt.Sprintf("%s%s.", entry.HostName, entry.Domain)
 			addrs, err = net.LookupIP(tmpHostName)
 			if err != nil {
-				return nil, fmt.Errorf("Could not determine host IP addresses for %s", entry.HostName)
+				intAddrs, err := net.InterfaceAddrs()
+				if err != nil {
+					return nil, err
+				}
+				for _, a := range intAddrs {
+					if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+						addrs = append(addrs, ipnet.IP)
+					}
+				}
+				if len(addrs) == 0 {
+					return nil, fmt.Errorf("Could not determine host IP addresses for %s", entry.HostName)
+				}
 			}
 		}
 		for i := 0; i < len(addrs); i++ {
