@@ -89,6 +89,17 @@ func addPeer(peerIp string) error {
 	return nil
 }
 
+func deletePeer(peerIp string) error {
+	if bridgeType == "ovs" {
+		ovs, err := ovs_connect()
+		if err != nil {
+			return err
+		}
+		deleteVxlanPort(ovs, bridgeIface, "vxlan-"+peerIp)
+	}
+	return nil
+}
+
 func ClusterMembership(job *engine.Job) engine.Status {
 	var (
 		newMember     = job.GetenvBool("added")
@@ -96,6 +107,8 @@ func ClusterMembership(job *engine.Job) engine.Status {
 	)
 	if newMember {
 		addPeer(memberAddress)
+	} else {
+		deletePeer(memberAddress)
 	}
 	return engine.StatusOK
 }

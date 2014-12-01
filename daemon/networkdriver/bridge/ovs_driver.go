@@ -3,6 +3,7 @@ package bridge
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 
 	"github.com/socketplane/libovsdb"
@@ -174,6 +175,58 @@ func addVxlanPort(ovs *libovsdb.OvsdbClient, bridgeName string, portName string,
 	}
 	if ok {
 		fmt.Println("Port Addition Successful : ", reply[1].UUID.GoUuid)
+	}
+}
+
+func portUuidForName(portName string) string {
+	portCache := cache["Port"]
+	for key, val := range portCache {
+		if val.Fields["name"] == portName {
+			return key
+		}
+	}
+	return ""
+}
+
+func deleteVxlanPort(ovs *libovsdb.OvsdbClient, bridgeName string, portName string) {
+	condition := libovsdb.NewCondition("name", "==", portName)
+	deleteOp := libovsdb.Operation{
+		Op:    "delete",
+		Table: "Port",
+		Where: []interface{}{condition},
+	}
+
+	portUuid := portUuidForName(portName)
+	if portUuid == "" {
+		log.Println("Unable to find a matching Port : ", portName)
+		return
+	}
+	// Deleting a Bridge row in Bridge table requires mutating the open_vswitch table.
+	mutateUuid := []libovsdb.UUID{libovsdb.UUID{portUuid}}
+	mutateSet, _ := libovsdb.NewOvsSet(mutateUuid)
+	mutation := libovsdb.NewMutation("ports", "delete", mutateSet)
+	condition = libovsdb.NewCondition("name", "==", bridgeName)
+
+	// simple mutate operation
+	mutateOp := libovsdb.Operation{
+		Op:        "mutate",
+		Table:     "Bridge",
+		Mutations: []interface{}{mutation},
+		Where:     []interface{}{condition},
+	}
+
+	operations := []libovsdb.Operation{deleteOp, mutateOp}
+	reply, _ := ovs.Transact("Open_vSwitch", operations...)
+
+	if len(reply) < len(operations) {
+		log.Println("Number of Replies should be atleast equal to number of Operations")
+	}
+	for i, o := range reply {
+		if o.Error != "" && i < len(operations) {
+			log.Println("Transaction Failed due to an error :", o.Error, " in ", operations[i])
+		} else if o.Error != "" {
+			log.Println("Transaction Failed due to an error :", o.Error)
+		}
 	}
 }
 func populateCache(updates libovsdb.TableUpdates) {
