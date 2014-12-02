@@ -69,6 +69,7 @@ func CreateOVSBridge(ovs *libovsdb.OvsdbClient, bridgeName string) error {
 	// bridge row to insert
 	bridge := make(map[string]interface{})
 	bridge["name"] = bridgeName
+	bridge["rstp_enable"] = true
 	bridge["ports"] = libovsdb.UUID{namedPortUuid}
 
 	insertBridgeOp := libovsdb.Operation{
