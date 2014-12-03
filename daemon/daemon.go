@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/daemon/execdriver/lxc"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	"github.com/docker/docker/daemon/networkdriver"
 	_ "github.com/docker/docker/daemon/networkdriver/bridge"
 	"github.com/docker/docker/daemon/networkdriver/portallocator"
 	"github.com/docker/docker/dockerversion"
@@ -772,6 +773,10 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 		selinuxSetDisabled()
 	}
 
+	// Start IPAM
+	// Hack : using Bonjour interface as the IP to Bind.
+	// Find a better approach to reduce tons of config files
+	networkdriver.ManageIPAddress(config.Bonjour, config.BootstrapServer)
 	// Start Bonjour service
 	go Bonjour(config.Bonjour, eng)
 

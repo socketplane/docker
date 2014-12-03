@@ -79,6 +79,7 @@ var (
 )
 
 func addPeer(peerIp string) error {
+	networkdriver.Join(peerIp)
 	if bridgeType == "ovs" {
 		ovs, err := ovs_connect()
 		if err != nil {

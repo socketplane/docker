@@ -21,6 +21,7 @@ type Config struct {
 	Pidfile                     string
 	Root                        string
 	AutoRestart                 bool
+	BootstrapServer             bool
 	Bonjour                     string
 	Dns                         []string
 	DnsSearch                   []string
@@ -52,6 +53,7 @@ func (config *Config) InstallFlags() {
 	flag.StringVar(&config.Pidfile, []string{"p", "-pidfile"}, "/var/run/docker.pid", "Path to use for daemon PID file")
 	flag.StringVar(&config.Root, []string{"g", "-graph"}, "/var/lib/docker", "Path to use as the root of the Docker runtime")
 	flag.BoolVar(&config.AutoRestart, []string{"#r", "#-restart"}, true, "--restart on the daemon has been deprecated in favor of --restart policies on docker run")
+	flag.BoolVar(&config.BootstrapServer, []string{"#bootstrap", "#-bootstrap"}, false, "Bootstrap server that is required for Consul to work. ONLY 1 node should be a bootstrap node")
 	flag.StringVar(&config.Bonjour, []string{"#bonjour", "-bonjour"}, "", "Optionally Specify an interface name whose ip-address should be used as clustering peer")
 	flag.BoolVar(&config.EnableIptables, []string{"#iptables", "-iptables"}, true, "Enable Docker's addition of iptables rules")
 	flag.BoolVar(&config.EnableIpForward, []string{"#ip-forward", "-ip-forward"}, true, "Enable net.ipv4.ip_forward")
