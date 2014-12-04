@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/docker/engine"
@@ -117,7 +118,21 @@ func keepAlive(resolver *bonjour.Resolver, eng *engine.Engine) {
 	}
 }
 
-func Bonjour(intfName string, eng *engine.Engine) {
+func staticClusterAnnounce(cluster string, eng *engine.Engine) {
+	if cluster == "" {
+		return
+	}
+
+	time.Sleep(time.Second * 2)
+	members := strings.Split(cluster, ",")
+	for _, member := range members {
+		if !isMyAddress(member) {
+			reportMembershipChange(eng, member, true)
+		}
+	}
+}
+
+func Bonjour(intfName string, cluster string, eng *engine.Engine) {
 	dnsCache = make(map[string]cacheEntry)
 	queryChan = make(chan *bonjour.ServiceEntry)
 	results := make(chan *bonjour.ServiceEntry)
@@ -131,6 +146,7 @@ func Bonjour(intfName string, eng *engine.Engine) {
 	go resolve(resolver, results, eng)
 	go lookup(resolver, queryChan)
 	go keepAlive(resolver, eng)
+	go staticClusterAnnounce(cluster, eng)
 
 	select {}
 }

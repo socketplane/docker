@@ -23,6 +23,7 @@ type Config struct {
 	AutoRestart                 bool
 	BootstrapServer             bool
 	Bonjour                     string
+	Cluster                     string
 	Dns                         []string
 	DnsSearch                   []string
 	Mirrors                     []string
@@ -55,6 +56,7 @@ func (config *Config) InstallFlags() {
 	flag.BoolVar(&config.AutoRestart, []string{"#r", "#-restart"}, true, "--restart on the daemon has been deprecated in favor of --restart policies on docker run")
 	flag.BoolVar(&config.BootstrapServer, []string{"#bootstrap", "#-bootstrap"}, false, "Bootstrap server that is required for Consul to work. ONLY 1 node should be a bootstrap node")
 	flag.StringVar(&config.Bonjour, []string{"#bonjour", "-bonjour"}, "", "Optionally Specify an interface name whose ip-address should be used as clustering peer")
+	flag.StringVar(&config.Cluster, []string{"#cluster", "-cluster"}, "", "Comma seperated hosts that form the cluster")
 	flag.BoolVar(&config.EnableIptables, []string{"#iptables", "-iptables"}, true, "Enable Docker's addition of iptables rules")
 	flag.BoolVar(&config.EnableIpForward, []string{"#ip-forward", "-ip-forward"}, true, "Enable net.ipv4.ip_forward")
 	flag.BoolVar(&config.EnableIpMasq, []string{"-ip-masq"}, true, "Enable IP masquerading for bridge's IP range")

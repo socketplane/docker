@@ -778,7 +778,7 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 	// Find a better approach to reduce tons of config files
 	networkdriver.ManageIPAddress(config.Bonjour, config.BootstrapServer)
 	// Start Bonjour service
-	go Bonjour(config.Bonjour, eng)
+	go Bonjour(config.Bonjour, config.Cluster, eng)
 
 	// get the canonical path to the Docker root directory
 	var realRoot string
