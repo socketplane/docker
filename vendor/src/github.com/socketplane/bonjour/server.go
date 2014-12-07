@@ -193,11 +193,11 @@ type server struct {
 // Constructs server structure
 func newServer(iface *net.Interface) (*server, error) {
 	// Create wildcard connections (because :5353 can be already taken by other apps)
-	ipv4conn, err := net.ListenUDP("udp4", mdnsWildcardAddrIPv4)
+	ipv4conn, err := net.ListenMulticastUDP("udp4", iface, mdnsWildcardAddrIPv4)
 	if err != nil {
 		log.Printf("[ERR] bonjour: Failed to bind to udp4 port: %v", err)
 	}
-	ipv6conn, err := net.ListenUDP("udp6", mdnsWildcardAddrIPv6)
+	ipv6conn, err := net.ListenMulticastUDP("udp6", iface, mdnsWildcardAddrIPv6)
 	if err != nil {
 		log.Printf("[ERR] bonjour: Failed to bind to udp6 port: %v", err)
 	}
