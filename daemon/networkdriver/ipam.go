@@ -1,219 +1,185 @@
 package networkdriver
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io/ioutil"
 	"log"
+	"math"
 	"net"
-	"net/http"
-	"os/exec"
-	"time"
+
+	"github.com/socketplane/ecc"
 )
-import b64 "encoding/base64"
 
-const ipamUrl = "http://localhost:8500/v1/kv/ipam/"
+// Simple IPv4 IPAM solution using Consul Distributed KV store
+// Key = subnet, Value = Bit Array of available ip-addresses in a given subnet
 
-func IsIpamAvailable() bool {
-	cmd := exec.Command("which", "consul")
-	app, err := cmd.Output()
-	if err != nil || string(app) == "" {
+const dataDir = "/tmp/socketplane"
+const dataStore = "ipam"
+
+func Init(bindInterface string, bootstrap bool) error {
+	return ecc.Start(true, bootstrap, bindInterface, dataDir)
+}
+
+func Request(subnet net.IPNet) net.IP {
+	bits := bitCount(subnet)
+	bc := int(bits / 8)
+	partial := int(math.Mod(bits, float64(8)))
+
+	if partial != 0 {
+		bc += 1
+	}
+	addrArray, _, ok := ecc.Get(dataStore, subnet.String())
+	currVal := make([]byte, len(addrArray))
+	copy(currVal, addrArray)
+	if !ok {
+		addrArray = make([]byte, bc)
+	}
+	pos := testAndSetBit(addrArray)
+	eccerr := ecc.Put(dataStore, subnet.String(), addrArray, currVal)
+	if eccerr == ecc.OUTDATED {
+		return Request(subnet)
+	}
+	return getIP(subnet, pos)
+}
+
+func Release(address net.IP, subnet net.IPNet) bool {
+	addrArray, _, ok := ecc.Get(dataStore, subnet.String())
+	currVal := make([]byte, len(addrArray))
+	copy(currVal, addrArray)
+	if !ok {
 		return false
+	}
+	pos := getBitPosition(address, subnet)
+	clearBit(addrArray, pos-1)
+	eccerr := ecc.Put(dataStore, subnet.String(), addrArray, currVal)
+	if eccerr == ecc.OUTDATED {
+		return Release(address, subnet)
 	}
 	return true
 }
 
-func ManageIPAddress(bindInterface string, bootstrap bool) error {
-	bindAddress := ""
-	if bindInterface != "" {
-		intf, err := net.InterfaceByName(bindInterface)
-		if err != nil {
-			log.Printf("Error : %v", err)
-			return err
-		}
-		addrs, err := intf.Addrs()
-		if err == nil {
-			for i := 0; i < len(addrs); i++ {
-				addr := addrs[i].String()
-				ip, _, _ := net.ParseCIDR(addr)
-				if ip != nil && ip.To4() != nil {
-					bindAddress = ip.To4().String()
-				}
+func getBitPosition(address net.IP, subnet net.IPNet) uint {
+	mask, size := subnet.Mask.Size()
+	if address.To4() != nil {
+		address = address.To4()
+	}
+	tb := size / 8
+	byteCount := (size - mask) / 8
+	bitCount := (size - mask) % 8
+	pos := uint(0)
+
+	for i := 0; i <= byteCount; i++ {
+		maskLen := 0xFF
+		if i == byteCount {
+			if bitCount != 0 {
+				maskLen = int(math.Pow(2, float64(bitCount))) - 1
+			} else {
+				maskLen = 0
 			}
 		}
+		pos += (uint(address[tb-i-1]) & uint(0xFF&maskLen)) << uint(8*i)
 	}
-	errCh := make(chan error)
-	go startConsul(bindAddress, bootstrap, errCh)
-
-	select {
-	case res := <-errCh:
-		return res
-	case <-time.After(time.Second * 5):
-	}
-	return nil
+	return pos
 }
 
-func GetAnAddress(subnet string) (string, error) {
-	return checkAndUpdateConsulKV(subnet)
-}
+// Given Subnet of interest and free bit position, this method returns the corresponding ip address
+// This method is functional and tested. Refer to ipam_test.go But can be improved
 
-func Join(address string) {
-	var cmd *exec.Cmd
-	cmd = exec.Command(consulApp, "join", address)
-	_, err := cmd.Output()
+func getIP(subnet net.IPNet, pos uint) net.IP {
+	retAddr := make([]byte, len(subnet.IP))
+	copy(retAddr, subnet.IP)
 
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-func Leave() {
-	var cmd *exec.Cmd
-	cmd = exec.Command(consulApp, "leave")
-	_, err := cmd.Output()
-
-	if err != nil {
-		log.Println(err)
-	}
-	time.Sleep(time.Second * 1)
-}
-
-func createConsulKV(subnet string) (string, error) {
-	address, _, err := net.ParseCIDR(subnet)
-	address = address.To4()
-	if err != nil || address == nil {
-		log.Printf("%v is not an IPv4 address\n", address)
-		return "", errors.New(subnet + "is not an IPv4 address")
-	}
-	// Hack : Not a bigger hack than this entire naive and dirty IPAM solution :-)
-	address[3] = 2
-	log.Printf("Creating KV pair for %s %s", ipamUrl+subnet, address.String())
-	req, err := http.NewRequest("PUT", ipamUrl+subnet, bytes.NewBuffer([]byte(address.String())))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Println("Error creating KV pair for ", ipamUrl+subnet, err)
-		return "", errors.New("Error creating KV pair ")
-	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	if string(body) == "false" {
-		return checkAndUpdateConsulKV(subnet)
+	mask, _ := subnet.Mask.Size()
+	var tb, byteCount, bitCount int
+	if subnet.IP.To4() != nil {
+		tb = 4
+		byteCount = (32 - mask) / 8
+		bitCount = (32 - mask) % 8
 	} else {
-		address[3] = 1
-		return address.String(), nil
-	}
-}
-
-type consulBody struct {
-	CreateIndex int    `json:"CreateIndex,omitempty"`
-	ModifyIndex int    `json:"ModifyIndex,omitempty"`
-	Key         string `json:"Key,omitempty"`
-	Flags       int    `json:"Flags,omitempty"`
-	Value       string `json:"Value,omitempty"`
-}
-
-func checkAndUpdateConsulKV(subnet string) (string, error) {
-	_, network, err := net.ParseCIDR(subnet)
-	if err != nil {
-		log.Printf("invalid subnet : %s", subnet)
-		return "", errors.New("invalid subnet " + subnet)
+		tb = 16
+		byteCount = (128 - mask) / 8
+		bitCount = (128 - mask) % 8
 	}
 
-	subnet = network.String()
-	resp, err := http.Get(ipamUrl + subnet)
-	if err != nil {
-		log.Printf("Error getting subnet information %v for %s\n", err, ipamUrl+subnet)
-		return "", errors.New("Unable to obtain subnet info from Consul " + ipamUrl + subnet)
-	}
-	defer resp.Body.Close()
-	log.Printf("Status of Get %s %d for %s", resp.Status, resp.StatusCode, ipamUrl+subnet)
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return createConsulKV(subnet)
-	} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		var jsonBody []consulBody
-		body, err := ioutil.ReadAll(resp.Body)
-		err = json.Unmarshal(body, &jsonBody)
-		addressStr, err := b64.StdEncoding.DecodeString(jsonBody[0].Value)
-		fmt.Printf("b=%s j=%s %s\n", body, jsonBody[0].Value, string(addressStr[:]))
-		address := net.ParseIP(string(addressStr[:]))
-		if err != nil || address.To4() == nil {
-			log.Printf("%s is not an IPv4 address : %v\n", address.String(), err)
-			return "", errors.New("Not a valid Ipv4 address " + address.String())
+	for i := 0; i <= byteCount; i++ {
+		maskLen := 0xFF
+		if i == byteCount {
+			if bitCount != 0 {
+				maskLen = int(math.Pow(2, float64(bitCount))) - 1
+			} else {
+				maskLen = 0
+			}
 		}
+		masked := pos & uint((0xFF&maskLen)<<uint(8*i))
+		retAddr[tb-i-1] |= byte(masked >> uint(8*i))
+	}
+	return net.IP(retAddr)
+}
+
+func bitCount(addr net.IPNet) float64 {
+	mask, _ := addr.Mask.Size()
+	if addr.IP.To4() != nil {
+		return math.Pow(2, float64(32-mask))
+	} else {
+		return math.Pow(2, float64(128-mask))
+	}
+}
+
+func setBit(a []byte, k uint) {
+	a[k/8] |= 1 << (k % 8)
+}
+
+func clearBit(a []byte, k uint) {
+	a[k/8] &= ^(1 << (k % 8))
+}
+
+func testBit(a []byte, k uint) bool {
+	return ((a[k/8] & (1 << (k % 8))) != 0)
+}
+
+func testAndSetBit(a []byte) uint {
+	var i uint
+	for i = uint(0); i < uint(len(a)*8); i++ {
+		if !testBit(a, i) {
+			setBit(a, i)
+			return i + 1
+		}
+	}
+	return i
+}
+
+// Lame implementation. Deprecate favoring Request function
+func GetAnAddress(subnet string) (string, error) {
+	addrArray, _, ok := ecc.Get(dataStore, subnet)
+	currVal := make([]byte, len(addrArray))
+	copy(currVal, addrArray)
+	if !ok {
+		var err error
+		_, networkAddr, err := net.ParseCIDR(subnet)
+		address := networkAddr.IP
 		address = address.To4()
-		address[3] = address[3] + 1
-
-		url := fmt.Sprintf("%s%s?cas=%d", ipamUrl, subnet, jsonBody[0].ModifyIndex)
-		log.Printf("Updating KV pair for %s %s %d", ipamUrl+subnet, address.String(), jsonBody[0].ModifyIndex)
-		req, err := http.NewRequest("PUT", url, bytes.NewBuffer([]byte(address.String())))
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Println("Error creating KV pair for ", ipamUrl+subnet, err)
-			return "", errors.New("Error creating KV pair for " + ipamUrl + subnet)
+		if err != nil || address == nil {
+			log.Printf("%v is not an IPv4 address\n", address)
+			return "", errors.New(subnet + "is not an IPv4 address")
 		}
-		defer resp.Body.Close()
-
-		body, _ = ioutil.ReadAll(resp.Body)
-		if string(body) == "false" {
-			checkAndUpdateConsulKV(subnet)
-		}
-		address[3] = address[3] - 1
-		return address.String(), nil
+		address[3] = 1
+		addrArray = []byte(address)
 	}
-	return "", errors.New("Error updating consul KV pair " + resp.Status)
+	addrArray[3] += 1
+
+	eccerr := ecc.Put(dataStore, subnet, addrArray, currVal)
+	if eccerr == ecc.OUTDATED {
+		return GetAnAddress(subnet)
+	} else if eccerr != ecc.OK {
+		return "", errors.New("Unable to get ip-address ")
+	}
+	addrArray[3] -= 1
+	return net.IP(addrArray).String(), nil
 }
 
-var consulApp string
-
-func startConsul(bindAddress string, bootstrap bool, errCh chan error) {
-	var cmd *exec.Cmd
-	cmd = exec.Command("which", "consul")
-	app, err := cmd.Output()
-	if err != nil {
-		log.Printf("Error starting Consul : %v", err)
-		errCh <- err
-		return
-	}
-	consulApp = string(app[:len(app)-1])
-
-	args := []string{"agent", "-server", "-data-dir", "/tmp/consul"}
-	if bootstrap {
-		args = append(args, "-bootstrap")
-	}
-
-	if bindAddress != "" {
-		args = append(args, "-bind")
-		args = append(args, bindAddress)
-	}
-
-	cmd = exec.Command(consulApp, args...)
-	_, err = cmd.Output()
-
-	if err != nil {
-		log.Println(err)
-		errCh <- err
-	}
+func Join(address string) error {
+	return ecc.Join(address)
 }
 
-/*
-func main() {
-	ManageIPAddress("192.168.1.7", []string{"10.6.0.0/24"})
-	time.Sleep(time.Second * 10)
-	for i := 0; i < 10; i++ {
-		addr, err := GetAnAddress("10.6.0.0/24")
-		fmt.Println(addr, err)
-		if err != nil {
-			leave()
-			return
-		}
-	}
-	select {}
+func Leave() error {
+	return ecc.Leave()
 }
-*/

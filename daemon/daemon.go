@@ -776,7 +776,7 @@ func NewDaemonFromDirectory(config *Config, eng *engine.Engine) (*Daemon, error)
 	// Start IPAM
 	// Hack : using Bonjour interface as the IP to Bind.
 	// Find a better approach to reduce tons of config files
-	networkdriver.ManageIPAddress(config.Bonjour, config.BootstrapServer)
+	networkdriver.Init(config.Bonjour, config.BootstrapServer)
 	// Start Bonjour service
 	go Bonjour(config.Bonjour, config.Cluster, eng)
 

@@ -75,18 +75,6 @@ func RequestIP(network *net.IPNet, ip net.IP) (net.IP, error) {
 	lock.Lock()
 	defer lock.Unlock()
 	key := network.String()
-	if !networkdriver.IsIpamAvailable() {
-		allocated, ok := allocatedIPs[key]
-		if !ok {
-			allocated = newAllocatedMap(network)
-			allocatedIPs[key] = allocated
-		}
-
-		if ip == nil {
-			return allocated.getNextIP()
-		}
-		return allocated.checkIP(ip)
-	}
 
 	ipaddr, err := networkdriver.GetAnAddress(key)
 	return net.ParseIP(ipaddr), err
